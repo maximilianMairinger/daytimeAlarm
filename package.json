@@ -1,0 +1,46 @@
+{
+  "name": "daytime-alarm",
+  "version": "0.0.1",
+  "description": "Set an (recurring) alarm at a daytime.",
+  "main": "app/dist/daytimeAlarm.js",
+  "types": "app/dist/daytimeAlarm.d.ts",
+  "scripts": {
+    "build": "tsc -p ./tsconfig.prod.json",
+    "dev": "npm run devWeb",
+    "devWeb": "rollup --config rollup.web.dev.config.js -w",
+    "devNode": "rollup --config rollup.node.dev.config.js -w",
+    "deploy": "npm run build && npm publish",
+    "test": "node ./test/dist/test-bundle"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maximilianMairinger/daytimeAlarm.git"
+  },
+  "keywords": [
+  "daytime",
+  "alarm",
+  "clock",
+  "recurring",
+  "timeout",
+  "time",
+  "event",
+  "fire"
+],
+  "author": "Maximilian Mairinger",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/maximilianMairinger/daytimeAlarm/issues"
+  },
+  "homepage": "https://github.com/maximilianMairinger/daytimeAlarm#readme",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^13.0.0",
+    "@rollup/plugin-json": "^4.1.0",
+    "@rollup/plugin-node-resolve": "^8.1.0",
+    "@rollup/plugin-typescript": "^5.0.0",
+    "@types/node": "^13.13.4",
+    "rollup": "^2.18.1",
+    "tslib": "2.0.0",
+    "typescript": "^3.9.5",
+    "webpack-merge": "^5.0.9"
+  }
+}
