@@ -17,15 +17,15 @@
     "url": "git+https://github.com/maximilianMairinger/daytimeAlarm.git"
   },
   "keywords": [
-  "daytime",
-  "alarm",
-  "clock",
-  "recurring",
-  "timeout",
-  "time",
-  "event",
-  "fire"
-],
+    "daytime",
+    "alarm",
+    "clock",
+    "recurring",
+    "timeout",
+    "time",
+    "event",
+    "fire"
+  ],
   "author": "Maximilian Mairinger",
   "license": "ISC",
   "bugs": {
@@ -42,5 +42,8 @@
     "tslib": "2.0.0",
     "typescript": "^3.9.5",
     "webpack-merge": "^5.0.9"
+  },
+  "dependencies": {
+    "josm": "^1.1.18"
   }
 }
