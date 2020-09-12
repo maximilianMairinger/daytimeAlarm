@@ -1,6 +1,6 @@
 import daytimeAlarm from "./../../app/src/daytimeAlarm"
 //const testElem = document.querySelector("#test")
 
-daytimeAlarm("14:35:50").onAlarm((s) => {
+daytimeAlarm("15:35:20").onAlarm((s) => {
   console.log(s)
-}).repeat()
+}).repeat((w) => w.setTime(0))

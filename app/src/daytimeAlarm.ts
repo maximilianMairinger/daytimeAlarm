@@ -3,17 +3,13 @@ import xtring from "xtring"; xtring()
 
 
 const repeatAlias = {
-  daily: (now: Date) => now.setDate(now.getDate() + 1)
+  daily: (now: Date) => now.setDate(now.getDate() + 1),
+  wong: (now: Date) => now
 }
 
 
-function currentDaytimeInMs() {
-  let d = now()
+function dayTimeInMs(d = now()) {
   return d.getHours() * toMs.hour + d.getMinutes() * toMs.minute + d.getSeconds() * toMs.second + d.getMilliseconds()
-}
-
-function nowInMs() {
-  return +now()
 }
 
 function now() {
@@ -58,21 +54,25 @@ function formalizeGetMetric(metric: string) {
   return `get${metric.capitalize()}s`
 }
 
+function splitDayTime(dayTime: string) {
+  return dayTime.split(":").map(e => +e) as [hour: number, minute: number, second: number]
+}
+
 function splitDayTimeString(dayTime: string | Date): { plain: { [key in Metric[number]]: Data<number> }, ms: { [key in Metric[number]]: Data<number> }, humanized: { [key in Metric[number]]: Data<string> } } {
-  let splitDayTime: [hour: number, minute: number, second: number]
+  let dayTimeSplit: [hour: number, minute: number, second: number]
   if (dayTime instanceof Date) {
-    splitDayTime = [] as any
+    dayTimeSplit = [] as any
     for (let metric of metrics) {
-      splitDayTime.push(dayTime[formalizeGetMetric(metric)]())
+      dayTimeSplit.push(dayTime[formalizeGetMetric(metric)]())
     }
   }
-  else splitDayTime = dayTime.split(":").map(e => +e) as [hour: number, minute: number, second: number]
+  else dayTimeSplit = splitDayTime(dayTime)
   
   let ret = {plain: {}, ms: {}, humanized: {}}
   for (let i = 0; i < metrics.length; i++) {
     const metric = metrics[i]
     const toMsFactor = toMs[metric]
-    const pln = ret.plain[metric] = new Data(splitDayTime[i] ? splitDayTime[i] : 0)
+    const pln = ret.plain[metric] = new Data(dayTimeSplit[i] ? dayTimeSplit[i] : 0)
     ret.ms[metric] = pln.tunnel(time => time * toMsFactor)
     ret.humanized[metric] = pln.tunnel(constructToHumanizedMetric(metric))
   }
@@ -85,6 +85,16 @@ function dateify(d: Date) {
   d.setMinutes(0)
   d.setSeconds(0)
   d.setMilliseconds(0)
+  return d
+}
+
+function dayTimeToDate(dayTime: string) {
+  let d = now()
+  d.setTime(0)
+  let split = splitDayTime(dayTime)
+  d.setHours(split[0])
+  d.setMinutes(split[1])
+  d.setSeconds(split[2])
   return d
 }
 
@@ -125,11 +135,11 @@ export class DayTimeAlarm {
       if (running) {
         let ms: number
         if (repeatOn === null) {
-          ms = absMs - currentDaytimeInMs()
+          ms = absMs - dayTimeInMs()
           if (ms < 0) ms += toMs.day
         }
         else {
-          ms = repeatOn - nowInMs() + absMs
+          ms = repeatOn - +now() + absMs
           if (ms < 0) {
             let date = new Date(repeatOn)
             console.warn(`DayTimeAlarm: Repeat: Given next day ${date.getDate()}.${date.getMonth()}.${date.getFullYear()} is in the past!?`)
@@ -143,8 +153,8 @@ export class DayTimeAlarm {
 
   }
 
-  hasAlarmPassedToday() {
-    let n = now()
+  hasAlarmPassedToday(date_dayTime: Date | string = now()) {
+    let n = date_dayTime instanceof Date ? date_dayTime : dayTimeToDate(date_dayTime)
     if (this.hour.get() < n.getHours()) return true
     if (this.hour.get() === n.getHours()) {
       if (this.minute.get() < n.getMinutes()) return true
@@ -155,22 +165,42 @@ export class DayTimeAlarm {
     return false
   }
 
-  private repeatFunction: Data<((now: Date, initDate: Date) => (Date | unknown)) | null> = new Data(null)
-  private repeatFunctionExecuter = (func: null | ((now: Date, initDate: Date) => (Date | unknown))) => {
+  private repeatFunction: Data<((now: Date, initDate: Date) => void) | null> = new Data(null)
+  private repeatFunctionExecuter = (func: null | ((now: Date, initDate: Date) => void), surelyPassed = false) => {
     if (func) {
-      let d = now()
-      if (!this.hasAlarmPassedToday()) d.setDate(d.getDate() - 1)
-      let q = func(d, this.repeatInitTime)
-      if (q instanceof Date) d = q
-      dateify(d)
-      return +d
+      let base = now()
+      let alarmHasPassedToday = this.hasAlarmPassedToday(base)
+      if (!surelyPassed && !alarmHasPassedToday) base.setDate(base.getDate() - 1)
+      let nowDate = +dateify(base)
+
+
+      let d: Date
+      let dDate: number
+      let i: number
+      for (i = 0; i < 1000; i++) {
+        d = new Date(base)
+        d.setDate(d.getDate() + i)
+        func(d, this.repeatInitTime)
+        dDate = +dateify(d)
+        if ((nowDate < dDate) || (nowDate === dDate && !alarmHasPassedToday)) break
+      }
+
+      if (i > 0) {
+        console.warn(`DayTimeAlarm: Repeat: Given next day is in the past! Tried ${i} time(s) to evade the error by jumping one day into the future.`)
+        if (i === 1000) {
+          console.error(`DayTimeAlarm: Repeat: Gave up error evasion. Canceling repeat.`)
+          return null
+        }
+      }
+
+      return dDate
     }
     else return null
   }
   private repeatOn: Data<number | null> = this.repeatFunction.tunnel(this.repeatFunctionExecuter)
   private repeatInitTime: Date
 
-  repeat(when: ((now: Date, initDate: Date) => (Date | unknown)) | keyof typeof repeatAlias | null = repeatAlias.daily) {
+  repeat(when: ((now: Date, initDate: Date) => void) | keyof typeof repeatAlias | null = repeatAlias.daily) {
     this.repeatInitTime = dateify(new Date)
     this.repeatFunction.set(typeof when === "string" ? repeatAlias[when] : when)
     return this as Omit<this, "repeat" | "start">
@@ -184,11 +214,12 @@ export class DayTimeAlarm {
 
 
   private alarmCallbacks() {
+    console.log(+dayTimeInMs() - this.ms.get())
     let s = this.toString()
     for (let cb of this.alarmCbs) {
       cb(s)
     }
-    this.repeatOn.set(this.repeatFunctionExecuter(this.repeatFunction.get()))
+    this.repeatOn.set(this.repeatFunctionExecuter(this.repeatFunction.get(), true))
   }
   private alarmCbs = []
   onAlarm(cb: (toString: string) => void) {
