@@ -24,7 +24,8 @@
     "timeout",
     "time",
     "event",
-    "fire"
+    "fire",
+    "day"
   ],
   "author": "Maximilian Mairinger",
   "license": "ISC",
