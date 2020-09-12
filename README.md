@@ -2,8 +2,6 @@
 
 Set an (recurring) alarm at a daytime.
 
-> Please not that Daytime alarm is currently under development and not yet suited for production
-
 ## Installation
 
 ```shell
@@ -12,12 +10,33 @@ Set an (recurring) alarm at a daytime.
 
 ## Usage
 
-
-
 ```ts
 import daytimeAlarm from "daytime-alarm"
 
-daytimeAlarm()
+// Alarm hits next time the clock shows 15:35:30
+let alarm = daytimeAlarm("15:35:30").onAlarm((time) => {
+  console.log("Alarm" + time)   // "Alarm 15:35:30"
+})
+```
+
+### On / Off
+
+```ts
+alarm.cancel()
+
+post("/activateAlarm", () => {
+  alarm.start()
+})
+```
+
+### Repeat
+
+```ts
+alarm.repeat("daily")
+
+post("/noLongerRepeat", () => {
+  alarm.once()
+})
 ```
 
 ## Contribute
