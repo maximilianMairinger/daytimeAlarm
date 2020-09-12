@@ -1,6 +1,12 @@
 import { Data, DataCollection, DataSubscription } from "josm"
 import xtring from "xtring"; xtring()
 
+
+const repeatAlias = {
+  daily: (now: Date) => now.setDate(now.getDate() + 1)
+}
+
+
 function currentDaytimeInMs() {
   let d = now()
   return d.getHours() * toMs.hour + d.getMinutes() * toMs.minute + d.getSeconds() * toMs.second + d.getMilliseconds()
@@ -74,9 +80,12 @@ function splitDayTimeString(dayTime: string | Date): { plain: { [key in Metric[n
   return ret as any
 }
 
-
-const repeatAlias = {
-  daily: (now: Date) => now.setDate(now.getDate() + 1)
+function dateify(d: Date) {
+  d.setHours(0)
+  d.setMinutes(0)
+  d.setSeconds(0)
+  d.setMilliseconds(0)
+  return d
 }
 
 
@@ -146,24 +155,23 @@ export class DayTimeAlarm {
     return false
   }
 
-  private repeatFunction: Data<((now: Date) => (Date | unknown)) | null> = new Data(null)
-  private repeatFunctionExecuter = (func: null | ((now: Date) => (Date | unknown)), fromCurrentDay = false) => {
+  private repeatFunction: Data<((now: Date, initDate: Date) => (Date | unknown)) | null> = new Data(null)
+  private repeatFunctionExecuter = (func: null | ((now: Date, initDate: Date) => (Date | unknown))) => {
     if (func) {
       let d = now()
-      if (!fromCurrentDay) d.setDate(d.getDate() - 1)
-      let q = func(d)
+      if (!this.hasAlarmPassedToday()) d.setDate(d.getDate() - 1)
+      let q = func(d, this.repeatInitTime)
       if (q instanceof Date) d = q
-      d.setHours(0)
-      d.setMinutes(0)
-      d.setSeconds(0)
-      d.setMilliseconds(0)
+      dateify(d)
       return +d
     }
     else return null
   }
   private repeatOn: Data<number | null> = this.repeatFunction.tunnel(this.repeatFunctionExecuter)
-  
-  repeat(when: ((now: Date) => (Date | unknown)) | keyof typeof repeatAlias | null = repeatAlias.daily) {
+  private repeatInitTime: Date
+
+  repeat(when: ((now: Date, initDate: Date) => (Date | unknown)) | keyof typeof repeatAlias | null = repeatAlias.daily) {
+    this.repeatInitTime = dateify(new Date)
     this.repeatFunction.set(typeof when === "string" ? repeatAlias[when] : when)
     return this as Omit<this, "repeat" | "start">
   }
@@ -180,7 +188,7 @@ export class DayTimeAlarm {
     for (let cb of this.alarmCbs) {
       cb(s)
     }
-    this.repeatOn.set(this.repeatFunctionExecuter(this.repeatFunction.get(), true))
+    this.repeatOn.set(this.repeatFunctionExecuter(this.repeatFunction.get()))
   }
   private alarmCbs = []
   onAlarm(cb: (toString: string) => void) {
