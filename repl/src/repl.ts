@@ -3,4 +3,4 @@ import daytimeAlarm from "./../../app/src/daytimeAlarm"
 
 daytimeAlarm("15:35:20").onAlarm((s) => {
   console.log(s)
-}).repeat((w) => w.setTime(0))
+}).repeat()

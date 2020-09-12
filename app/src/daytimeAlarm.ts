@@ -3,8 +3,35 @@ import xtring from "xtring"; xtring()
 
 
 const repeatAlias = {
-  daily: (now: Date) => now.setDate(now.getDate() + 1),
-  wong: (now: Date) => now
+  daily: (now: Date) => {now.setDate(now.getDate() + 1)},
+  weekDays: (now: Date) => {
+    now.setDate(now.getDate() + 1)
+    let weekDay = now.getDay()
+    if (weekDay > 5) now.setDate(now.getDate() + 8 - weekDay)
+  },
+  weekEnds: (now: Date) => {
+    now.setDate(now.getDate() + 1)
+    let weekDay = now.getDay()
+    if (weekDay < 6) now.setDate(now.getDate() + 6 - weekDay)
+  },
+  monthly: (now: Date, init: Date) => {
+    now.setDate(56 /* 28 * 2 */)  // Will always skip **one** month
+    let month = now.getMonth()
+    now.setDate(init.getDate())
+    while(now.getMonth() !== month) {
+      now.setDate(now.getDate() - 1)
+    }
+  },
+  yearly(now: Date, init: Date) {
+    now.setDate(0)
+    now.setMonth(20)
+    let month = init.getMonth()
+    now.setMonth(month)
+    now.setDate(init.getDate())
+    while(now.getMonth() !== month) {
+      now.setDate(now.getDate() - 1)
+    }
+  }
 }
 
 
