@@ -242,7 +242,7 @@ export class DayTimeAlarm {
 
 
   private alarmCallbacks() {
-    console.log(+dayTimeInMs() - this.ms.get())
+    // console.log("Error of " + (+dayTimeInMs() - this.ms.get()))
     let s = this.toString()
     for (let cb of this.alarmCbs) {
       cb(s)
