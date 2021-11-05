@@ -1,6 +1,6 @@
 import { Data, DataCollection, DataSubscription } from "josm"
 import xtring from "xtring"; xtring()
-import { setTimeout } from "long-timeout"
+import { setTimeout, clearTimeout } from "long-timeout"
 
 
 const repeatAlias = {
