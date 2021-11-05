@@ -1,6 +1,6 @@
 {
   "name": "daytime-alarm",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Set an (recurring) alarm at a daytime.",
   "main": "app/dist/daytimeAlarm.js",
   "types": "app/dist/daytimeAlarm.d.ts",
