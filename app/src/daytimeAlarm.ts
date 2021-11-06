@@ -1,29 +1,62 @@
 import { Data, DataCollection, DataSubscription } from "josm"
 import xtring from "xtring"; xtring()
 import { setTimeout, clearTimeout } from "long-timeout"
+import nthCheck from "nth-check";
 
 
-const repeatAlias = {
-  daily: (now: Date) => {now.setDate(now.getDate() + 1)},
-  weekDays: (now: Date) => {
+const maxRetryCount = 10000
+
+function apr(trei: (nextAlarm: Date, init: Date) => void) {
+  return (test: (now: Date) => boolean = () => true) => (now: Date, init: Date) => {
+    let itr = 0
+    do {
+      trei(now, init)
+      if (itr >= maxRetryCount) throw new Error("Unable to find repeat day that gets approved")
+      itr++
+    } while (!test(now))
+  }
+}
+
+function nthApr(trei: (nextAlarm: Date, init: Date) => void) {
+  return (nth_test: number | string | ((now: Date) => boolean) = () => true) => {
+    if (!(nth_test instanceof Function)) {
+      if (typeof nth_test === "number") nth_test = nth_test.toString()
+      const nthF = nthCheck(nth_test)
+      let inc = 1
+      nth_test = () => nthF(inc++)
+    }
+
+    return apr(trei)(nth_test as (now: Date) => boolean)
+  }
+    
+}
+
+export const Repeat = {
+  daily: nthApr((now) => {
+    now.setDate(now.getDate() + 1)
+  }),
+  weekly: nthApr((now) => {
+    now.setDate(now.getDate() + 7)
+  }),
+  weekDays: apr((now) => {
     now.setDate(now.getDate() + 1)
     let weekDay = now.getDay()
     if (weekDay > 5) now.setDate(now.getDate() + 8 - weekDay)
-  },
-  weekEnds: (now: Date) => {
+  }),
+  weekEnds: apr((now) => {
     now.setDate(now.getDate() + 1)
     let weekDay = now.getDay()
     if (weekDay < 6) now.setDate(now.getDate() + 6 - weekDay)
-  },
-  monthly: (now: Date, init: Date) => {
+  }),
+  monthly: nthApr((now, init) => {
     now.setDate(56 /* 28 * 2 */)  // Will always skip **one** month
     let month = now.getMonth()
     now.setDate(init.getDate())
     while(now.getMonth() !== month) {
       now.setDate(now.getDate() - 1)
     }
-  },
-  yearly(now: Date, init: Date) {
+  }),
+  yearly: nthApr((now, init) => {
     now.setDate(0)
     now.setMonth(20)
     let month = init.getMonth()
@@ -32,8 +65,10 @@ const repeatAlias = {
     while(now.getMonth() !== month) {
       now.setDate(now.getDate() - 1)
     }
-  }
+  })
 }
+
+const repeatDelayDefault = Repeat.daily()
 
 
 function dayTimeInMs(d = now()) {
@@ -138,6 +173,18 @@ export class DayTimeAlarm {
 
   private humanized: Data<string>
 
+  
+  /**
+   * Initiates (but does not start) a new DayTimeAlarm using the dayTime given.
+   * @param dayTime The time of day (in the format "HH:MM:SS" or "HH:MM" or "HH") when the alarm should be triggered.
+   */
+  constructor(dayTime: string)
+  /**
+   * Initiates (but does not start) a new DayTimeAlarm using the dayTime given.
+   * @param dayTime The time of day as Date (of which only the hours, minutes and seconds are read) when the alarm should be triggered.
+   */
+  constructor(dayTime: Date)
+  constructor(dayTime: string | Date)
   constructor(dayTime: string | Date) {
     const { plain, ms: {hour, minute, second}, humanized: {hour: humHour, minute: humMin, second: humSec} } = splitDayTimeString(dayTime)
     for (let metric in plain) {
@@ -181,8 +228,19 @@ export class DayTimeAlarm {
 
   }
 
-  hasAlarmPassedToday(date_dayTime: Date | string = now()) {
-    let n = date_dayTime instanceof Date ? date_dayTime : dayTimeToDate(date_dayTime)
+  /**
+   * Whether or not the alarm has already passed today relative to the optional dayTime given (default is now).
+   * @param dayTime The time of today (in the format "HH:MM:SS" or "HH:MM" or "HH") to be compared to.
+   */
+  hasAlarmPassedToday(dayTime?: string): boolean
+  /**
+   * Whether or not the alarm has already passed today relative to the optional dayTime given (default is now).
+   * @param dayTime The time of today as Date (of which only the hours, minutes and seconds are read) to be compared to.
+   */
+  hasAlarmPassedToday(dayTime?: Date): boolean
+  hasAlarmPassedToday(dayTime?: Date | string): boolean
+  hasAlarmPassedToday(dayTime: Date | string = now()) {
+    let n = dayTime instanceof Date ? dayTime : dayTimeToDate(dayTime)
     if (this.hour.get() < n.getHours()) return true
     if (this.hour.get() === n.getHours()) {
       if (this.minute.get() < n.getMinutes()) return true
@@ -205,19 +263,32 @@ export class DayTimeAlarm {
       let d: Date
       let dDate: number
       let i: number
-      for (i = 0; i < 1000; i++) {
+      for (i = 0; i < maxRetryCount; i++) {
         d = new Date(base)
         d.setDate(d.getDate() + i)
-        func(d, this.repeatInitTime)
+        try {
+          func(d, this.repeatInitTime)
+        }
+        catch(e) {
+          console.error("DayTimeAlarm: Repeat: Encoutered error while executing repeat function:", e)
+          console.error("DayTimeAlarm: Repeat: Will cancel repeat of this alarm.")
+          this.once()
+          return null
+        }
+        
         dDate = +dateify(d)
         if ((nowDate < dDate) || (nowDate === dDate && !alarmHasPassedToday)) break
       }
 
       if (i > 0) {
         console.warn(`DayTimeAlarm: Repeat: Given next day is in the past! Tried ${i} time(s) to evade the error by jumping one day into the future.`)
-        if (i === 1000) {
+        if (i >= maxRetryCount) {
           console.error(`DayTimeAlarm: Repeat: Gave up error evasion. Canceling repeat.`)
+          this.once()
           return null
+        }
+        else {
+          console.warn(`DayTimeAlarm: Repeat: Was able to resolve the issue.`)
         }
       }
 
@@ -228,13 +299,39 @@ export class DayTimeAlarm {
   private repeatOn: Data<number | null> = this.repeatFunction.tunnel(this.repeatFunctionExecuter)
   private repeatInitTime: Date
 
-  repeat(when: ((now: Date, initDate: Date) => void) | keyof typeof repeatAlias | null = repeatAlias.daily) {
+
+  
+  /**
+   * Let the alarm repeat in a (highly customizable) given interval. The alarm will always trigger at the set dayTime, thus the minimum interval is daily.
+   * @param when Customize the interval by instanciating the presets manually (e.g: Repeat.daily("2n+3")), or, for even more control, provide a function that takes the current date as argument (and the inital date as reference) and modifies it to represent the next date. A simple example would be:
+   * ```
+   * alarm.repeat(function daily(now: Date, init: Date) => {
+   *   now.setDate(now.getDate() + 1)
+   * })
+   * ```
+   */
+  repeat(when?: (now: Date, initDate: Date) => void): Omit<this, "repeat" | "start">
+  /**
+   * Let the alarm repeat in a (highly customizable) given interval. The alarm will always trigger at the set dayTime, thus the minimum interval is daily.
+   * @param when Use one of the interval presets like "daily" | "weekly" | "weekDays" | "weekEnds" | "monthly" | "yearly"
+   */
+  repeat(when?: (keyof typeof Repeat)): Omit<this, "repeat" | "start">
+  /**
+   * Let the alarm repeat in a (highly customizable) given interval. The alarm will always trigger at the set dayTime, thus the minimum interval is daily. 
+   * @param when Giving null as a parameter will cancel the repeat.
+   */
+  repeat(when?: null): Omit<this, "repeat" | "start">
+  repeat(when?: ((now: Date, initDate: Date) => void) | keyof typeof Repeat | null): Omit<this, "repeat" | "start">
+  repeat(when: ((now: Date, initDate: Date) => void) | keyof typeof Repeat | null = repeatDelayDefault) {
     this.repeatInitTime = dateify(new Date)
-    this.repeatFunction.set(typeof when === "string" ? repeatAlias[when] : when)
+    this.repeatFunction.set(typeof when === "string" ? Repeat[when]() : when)
     return this as Omit<this, "repeat" | "start">
   }
   
-
+  /**
+   * Cancel the repeat of the alarm. The next alarm will still trigger, but afterwards none.
+   * To cancel the repeat, use `alarm.cancel()`.
+   */
   once() {
     this.repeat(null)
     return this as Omit<this, "once" | "start">
@@ -262,12 +359,19 @@ export class DayTimeAlarm {
     return this
   }
 
-  
+  /**
+   * Start the alarm
+   * @param onAlarm 
+   */
   start(onAlarm?: () => void) {
     if (onAlarm) this.onAlarm(onAlarm)
     this.running.set(true)
     return this as Omit<this, "start">
   }
+  /**
+   * Cancel the alarm with immediate effect.
+   * To start the alarm again, use `alarm.start()`.
+   */
   cancel() {
     this.running.set(false)
     return this as Omit<this, "cancel" | "once" | "repeat">
@@ -285,6 +389,17 @@ export class DayTimeAlarm {
   }
 }
 
+/**
+ * Initiates and starts a new DayTimeAlarm using the dayTime given.
+ * @param dayTime The time of day (in the format "HH:MM:SS" or "HH:MM" or "HH") when the alarm should be triggered.
+ */
+export default function(dayTime: string): DayTimeAlarm
+/**
+ * Initiates and starts a new DayTimeAlarm using the dayTime given.
+ * @param dayTime The time of day as Date (of which only the hours, minutes and seconds are read) when the alarm should be triggered.
+ */
+export default function(dayTime: Date): DayTimeAlarm
+export default function(dayTime: string | Date): DayTimeAlarm
 export default function(dayTime: string | Date) {
   return new DayTimeAlarm(dayTime).start()
 }

@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc -p ./tsconfig.prod.json",
     "dev": "npm run devWeb",
+    "repl": "node ./repl/dist/daytimeAlarm-repl",
     "devWeb": "rollup --config rollup.web.dev.config.js -w",
     "devNode": "rollup --config rollup.node.dev.config.js -w",
     "deploy": "npm run build && npm publish",
@@ -48,6 +49,7 @@
   "dependencies": {
     "josm": "^1.1.18",
     "long-timeout": "^0.1.1",
+    "nth-check": "^2.0.1",
     "xtring": "^1.2.0"
   }
 }
