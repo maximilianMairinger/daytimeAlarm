@@ -347,7 +347,8 @@ export class DayTimeAlarm {
     this.repeatOn.set(this.repeatFunctionExecuter(this.repeatFunction.get(), true))
   }
   private alarmCbs = []
-  then(cb: (toString: string) => void) {
+  // legacy alias
+  private then(cb: (toString: string) => void) {
     return this.onAlarm(cb)
   }
   onAlarm(cb: (toString: string) => void) {
